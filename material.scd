@@ -11,11 +11,13 @@
 ~wordIndex = 0;
 ~word = ~words[0];
 ~morph = 0.0;
-// Niveaux d'envoi par voix (0 à 1)
-~sendReverb1 = 0.3;
-~sendDelay1  = 0.0;
-~sendReverb2 = 0.3;
-~sendDelay2  = 0.0;
+
+// État par slot
+~slotActiveBus  = [\a, \a, \a, \a];
+~slotSendReverb = [0.3, 0.3, 0.3, 0.3];
+~slotSendDelay  = [0.0, 0.0, 0.0, 0.0];
+
+// Défauts utilisés par initSlots et les swap depuis les pushes
+~defaultFreq = [150, 100, 200, 75];
+~defaultSub  = [true, false, true, false];
 )
-
-
