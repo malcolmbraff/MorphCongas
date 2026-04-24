@@ -27,12 +27,15 @@
 // 13   → nextWord
 ~pushActions = Array.fill(16, { { } });
 
-~pushActions[0] = { ~actions.initSlots.() };
-~pushActions[1] = { ~actions.stopAllSlots.() };
+// NB : on utilise ~actions[\name].(...) et non ~actions.name.(...)
+// parce que Event auto-appelle la fonction avec ~actions comme premier
+// arg — ce qui casse toute action prenant des arguments.
+~pushActions[0] = { ~actions[\initSlots].() };
+~pushActions[1] = { ~actions[\stopAllSlots].() };
 
 4.do { |i|
     ~pushActions[4 + i] = {
-        ~actions.swapSlot.(
+        ~actions[\swapSlot].(
             i,
             ~defaultFreq[i],
             ~word,
@@ -43,8 +46,8 @@
     };
 };
 
-~pushActions[12] = { ~actions.prevWord.() };
-~pushActions[13] = { ~actions.nextWord.() };
+~pushActions[12] = { ~actions[\prevWord].() };
+~pushActions[13] = { ~actions[\nextWord].() };
 
 ~onButtonChange = { |num, state, chan|
     if(state == 1) { ~pushActions[num].() };

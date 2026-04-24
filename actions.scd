@@ -2,7 +2,7 @@
 ~actions = (
     // --- Navigation dans ~words ---
     // Ne déclenchent AUCUN swap : modifient seulement ~word / ~wordIndex.
-    // Le nouveau mot prendra effet au prochain swapSlot.
+    // Le nouveau mot prendra effet au prochain swapSlot ou playSource.
     nextWord: {
         ~wordIndex = (~wordIndex + 1) % ~words.size;
         ~word = ~words[~wordIndex];
@@ -21,15 +21,26 @@
     },
 
     // --- Gestion des slots ---
+
+    // playSource : assigne un Pdef à un slot SANS crossfade.
+    // Stoppe tout ce qui tournait sur le slot (A et B), reset les amps
+    // du slot synth, relance sur le bus A.
+    playSource: { |slot, freq, word, sub|
+        var wrapperA = ("voix" ++ slot ++ "A").asSymbol;
+        var wrapperB = ("voix" ++ slot ++ "B").asSymbol;
+        [wrapperA, wrapperB].do { |w| Pdef(w).stop };
+        ~makePdef.(slot, \a, freq, word, sub);
+        ~slotSynths[slot].set(\ampA, 1, \ampB, 0);
+        Pdef(wrapperA).play;
+        ~slotActiveBus[slot] = \a;
+        "slot %: playing (no fade)".format(slot).postln;
+    },
+
     initSlots: {
         4.do { |i|
-            var name = ("voix" ++ i ++ "A").asSymbol;
-            ~makePdef.(i, \a, ~defaultFreq[i], ~word, ~defaultSub[i]);
-            Pdef(name).play;
-            ~slotActiveBus[i] = \a;
-            ~slotSynths[i].set(\ampA, 1, \ampB, 0);
+            ~actions.playSource.(i, ~defaultFreq[i], ~word, ~defaultSub[i]);
         };
-        "slots initialised (all on bus A)".postln;
+        "slots initialised".postln;
     },
 
     stopAllSlots: {
@@ -77,7 +88,7 @@
                     ~slotActiveBus[slot] = target;
                     "slot % swapped: % → %".format(slot, active, target).postln;
                 }).play;
-                nil  // ne pas reprogrammer
+                nil
             }
         );
         "slot %: swap scheduled on next % beat(s), fade % s".format(
