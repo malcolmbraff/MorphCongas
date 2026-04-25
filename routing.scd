@@ -1,10 +1,14 @@
 (
-// Libération idempotente des effets et des slots
+// Libération idempotente des effets. Les Ndef de voix gèrent leur
+// propre cycle de vie ; on stoppe juste celles qui tournaient pour
+// éviter d'avoir des nodes pointant vers d'anciens bus de FX.
 [~reverbSynth, ~delaySynth, ~masterSynth].do { |syn|
     if(syn.notNil) { syn.free };
 };
-if(~slotSynths.notNil) {
-    ~slotSynths.do { |syn| if(syn.notNil) { syn.free } };
+if(~voices.notNil) {
+    ~voices.keysDo { |name|
+        if(Ndef(name).isPlaying) { Ndef(name).stop(0) };
+    };
 };
 
 s.bind {
@@ -30,20 +34,9 @@ s.bind {
         \time, 0.375,
         \fb, 0.6,
     ]);
-
-    // 4 slots placés avant les effets dans la chaîne
-    ~slotSynths = Array.fill(4, { |i|
-        Synth.before(~reverbSynth, \voixSlot, [
-            \inA, ~busses.voix[i].a,
-            \inB, ~busses.voix[i].b,
-            \out, ~busses.master,
-            \reverbSend, ~busses.reverb,
-            \delaySend,  ~busses.delay,
-            \ampA, 1, \ampB, 0,
-            \sendReverb, 0.3, \sendDelay, 0.0,
-        ]);
-    });
 };
 
-"Routing actif (4 slots + reverb/delay/master)".postln;
+// Les Ndef se placent en tête de root group (par défaut), donc avant
+// reverb/delay/master dans l'ordre d'exécution.
+"Routing actif (master/reverb/delay) — voix gérées par Ndef".postln;
 )

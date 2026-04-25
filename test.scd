@@ -5,11 +5,23 @@
 
 
 /* -----------------------------------------------------------------
-   1. Démarrage
+   1. Play / stop / toggle d'une voix
    ----------------------------------------------------------------- */
 
-// Lancer les 4 slots (tous sur bus A, amplitude pleine)
-~actions.initSlots.();
+// Démarre \saw1 avec fade-in 2s
+~actions.play.(\saw1, 2);
+
+// Stop \saw1 avec fade-out 4s
+~actions.stop.(\saw1, 4);
+
+// Toggle \fm1 (joue ou stoppe selon l'état)
+~actions.toggle.(\fm1);
+
+// Toggle avec fadeTime custom
+~actions.toggle.(\fm1, 6);
+
+// Stop tout en cours
+~actions.stopAll.(3);
 
 
 /* -----------------------------------------------------------------
@@ -18,106 +30,99 @@
 
 ~morph = 0.0;   // straight
 ~morph = 0.5;
-~morph = 1.0;   // tempering maximal (ratio = 2 pour Pneu)
+~morph = 1.0;   // tempering maximal
 
 
 /* -----------------------------------------------------------------
-   3. Navigation dans ~words (n'affecte PAS les Pdef actifs —
-   le nouveau mot prend effet au prochain swapSlot)
+   3. Navigation dans ~words
+   Les Pbind lisent ~word via Pfunc → changement entendu à
+   l'événement suivant, sans relancer les voix.
    ----------------------------------------------------------------- */
 
 ~actions.nextWord.();
 ~actions.prevWord.();
-
-// État courant
 "wordIndex=% | word=%".format(~wordIndex, ~word).postln;
 
 
 /* -----------------------------------------------------------------
-   4. swapSlot — crossfade vers une nouvelle version
-   Signature : swapSlot.(slot, freq, word, sub, fadeTime, quant)
+   4. Sends par voix
    ----------------------------------------------------------------- */
 
-// Swap slot 0 avec les defaults et le mot courant
-~actions.swapSlot.(0, ~defaultFreq[0], ~word, ~defaultSub[0], 4, 4);
+~actions.setSendReverb.(\saw1, 0.8);
+~actions.setSendDelay.(\saw1, 0.3);
+~actions.setSendReverb.(\fm1, 0.5);
+~actions.setSendDelay.(\fm1, 0.6);
 
-// Swap slot 1 avec une freq custom et un mot choisi, fade court
-~actions.swapSlot.(1, 120, ~words[3], false, 2, 2);
-
-// Swap des 4 slots en cascade (même mot, defaults)
-(
-4.do { |i|
-    ~actions.swapSlot.(i, ~defaultFreq[i], ~words[2], ~defaultSub[i], 3, 4);
-};
-)
+// Équivalent direct via Ndef :
+Ndef(\saw1).set(\sendReverb, 0.8, \sendDelay, 0.3);
 
 
 /* -----------------------------------------------------------------
-   5. Sends par slot (équivalent knobs 4-7 reverb, 8-11 delay)
-   Agissent directement sur le slot synth (pas de Pdef reconstruit)
+   5. Définir / remplacer une voix à chaud
    ----------------------------------------------------------------- */
 
-~slotSynths[0].set(\sendReverb, 0.8);
-~slotSynths[0].set(\sendDelay,  0.3);
-~slotSynths[1].set(\sendReverb, 0.2);
-~slotSynths[2].set(\sendReverb, 0.5);
-~slotSynths[3].set(\sendDelay,  0.6);
+// Ajoute une 3e voix sur le push 3
+~makeVoice.(\saw2, 3, Pbind(
+    \instrument, \negSaw,
+    \freq, 75,
+    \dur, Pneu(morph: Pfunc({ ~morph }), sub: false, word: Pfunc({ ~word })),
+    \envDur, Pkey(\dur) * 0.9,
+    \sustain, inf,
+));
+~actions.play.(\saw2, 1);
+
+// Remplace \saw1 (ancien Ndef cleared, nouveau enregistré sur push 1)
+~makeVoice.(\saw1, 1, Pbind(
+    \instrument, \negSaw,
+    \freq, 220,
+    \dur, Pneu(morph: Pfunc({ ~morph }), sub: true, word: Pfunc({ ~word })),
+    \envDur, Pkey(\dur) * 0.9,
+    \sustain, inf,
+));
 
 
 /* -----------------------------------------------------------------
-   6. Simulation directe des hooks MIDI
-   (pour tester les mappings sans contrôleur)
+   6. Simulation directe des hooks MIDI (sans contrôleur)
    ----------------------------------------------------------------- */
 
-// Knobs : num, val (0..1), chan
-~onKnobChange.(0, 0.7, 0);   // morph
-~onKnobChange.(4, 0.9, 0);   // slot 0 sendReverb
-~onKnobChange.(5, 0.4, 0);   // slot 1 sendReverb
-~onKnobChange.(8, 0.6, 0);   // slot 0 sendDelay
+~onKnobChange.(0, 0.7, 0);          // morph
+~onKnobChange.(1, 0.9, 0);          // sendReverb voix midi 1 (\saw1)
+~onKnobChange.(2, 0.4, 0);          // sendReverb voix midi 2 (\fm1)
+~onKnobShiftChange.(1, 0.6, 4);     // sendDelay voix midi 1
 
-// Pushes : num, state (1=down), chan
-~onButtonChange.(0,  1, 1);   // push 0 → initSlots
-~onButtonChange.(4,  1, 1);   // push 4 → swapSlot 0 (defaults)
-~onButtonChange.(13, 1, 1);   // push 13 → nextWord
+~onButtonChange.(1, 1, 1);          // toggle \saw1
+~onButtonChange.(2, 1, 1);          // toggle \fm1
+~onButtonChange.(0, 1, 1);          // stopAll
+~onButtonChange.(13, 1, 1);         // nextWord
 
 
 /* -----------------------------------------------------------------
-   7. Arrêts
-   ----------------------------------------------------------------- */
-
-// Arrêt propre (stoppe les 8 Pdef possibles — A et B pour chaque slot)
-~actions.stopAllSlots.();
-
-// Arrêt d'urgence : tue tous les synths (inclut les effets et slotSynths —
-// il faudra recharger Morph Congas.scd ensuite)
-CmdPeriod.run;
-
-
-/* -----------------------------------------------------------------
-   8. Diagnostics
+   7. Diagnostics
    ----------------------------------------------------------------- */
 
 (
 "--- État ---".postln;
-"morph          = %".format(~morph).postln;
-"wordIndex      = %".format(~wordIndex).postln;
-"word           = %".format(~word).postln;
-"slotActiveBus  = %".format(~slotActiveBus).postln;
-"slotSendReverb = %".format(~slotSendReverb).postln;
-"slotSendDelay  = %".format(~slotSendDelay).postln;
-"slotSynths     = %".format(~slotSynths).postln;
-)
-
-// Voir l'arbre serveur (ordre head→tail : slots, reverb, delay, master)
-s.queryAllNodes;
-
-// Lister les Pdef actuellement définis pour le projet
-(
-4.do { |slot|
-    [\a, \b].do { |bus|
-        var name = ("voix" ++ slot ++ bus.asString.toUpper).asSymbol;
-        var pdef = Pdef.all[name];
-        "% : %".format(name, if(pdef.isNil, "(absent)", pdef)).postln;
-    };
+"morph        = %".format(~morph).postln;
+"wordIndex    = %".format(~wordIndex).postln;
+"word         = %".format(~word).postln;
+"voices       = %".format(~voices.keys.asArray).postln;
+"voiceByMidi  = %".format(~voiceByMidi).postln;
+~voices.keysDo { |name|
+    "  % : midi=%, playing=%, fadeTime=%".format(
+        name,
+        ~voices[name].midi,
+        Ndef(name).isPlaying,
+        Ndef(name).fadeTime
+    ).postln;
 };
 )
+
+// Arbre serveur
+s.queryAllNodes;
+
+// Dump d'un Ndef en particulier (slots, paramètres)
+Ndef(\saw1).gui;       // ouvre une GUI proxy
+Ndef(\fm1).getKeysValues;
+
+// Arrêt d'urgence
+CmdPeriod.run;
