@@ -1,6 +1,5 @@
 (
 // Libération idempotente : chaque entrée de ~busses est un Bus stéréo.
-// Les bus par voix sont alloués dynamiquement par ~makeVoice (patterns.scd).
 if(~busses.notNil) {
     ~busses.keysValuesDo { |k, v|
         if(v.isKindOf(Bus)) { v.free };

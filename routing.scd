@@ -1,14 +1,8 @@
 (
-// Libération idempotente des effets. Les Ndef de voix gèrent leur
-// propre cycle de vie ; on stoppe juste celles qui tournaient pour
-// éviter d'avoir des nodes pointant vers d'anciens bus de FX.
+// Libération idempotente : si on recharge ce fichier, on libère
+// les anciens synths d'effets avant d'en créer de nouveaux.
 [~reverbSynth, ~delaySynth, ~masterSynth].do { |syn|
     if(syn.notNil) { syn.free };
-};
-if(~voices.notNil) {
-    ~voices.keysDo { |name|
-        if(Ndef(name).isPlaying) { Ndef(name).stop(0) };
-    };
 };
 
 s.bind {
@@ -19,7 +13,7 @@ s.bind {
         \amp, 1.0,
     ], target: s, addAction: \addToTail);
 
-    // Reverb : lit reverb bus, écrit sur master bus, avant le master
+    // Reverb : lit ~busses.reverb, écrit sur ~busses.master, avant le master
     ~reverbSynth = Synth.before(~masterSynth, \reverb, [
         \in, ~busses.reverb,
         \out, ~busses.master,
@@ -27,7 +21,7 @@ s.bind {
         \damp, 0.4,
     ]);
 
-    // Delay : lit delay bus, écrit sur master bus, avant le master
+    // Delay : lit ~busses.delay, écrit sur ~busses.master, avant le master
     ~delaySynth = Synth.before(~masterSynth, \delay, [
         \in, ~busses.delay,
         \out, ~busses.master,
@@ -36,7 +30,7 @@ s.bind {
     ]);
 };
 
-// Les Ndef se placent en tête de root group (par défaut), donc avant
-// reverb/delay/master dans l'ordre d'exécution.
-"Routing actif (master/reverb/delay) — voix gérées par Ndef".postln;
+// Les synths générés par Pdef(\rhythm) se placent en tête du root group,
+// donc avant reverb/delay/master dans l'ordre d'exécution audio.
+"Routing actif : master + reverb + delay".postln;
 )

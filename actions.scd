@@ -1,75 +1,85 @@
 (
 ~actions = (
+
     // --- Navigation dans ~words ---
-    // Les Pbind lisent ~word via Pfunc → changement entendu à
-    // l'événement suivant, sans relancer les voix.
+    // Les Pbind lisent ~word via Pfunc (Pneu modifié) → changement
+    // entendu au prochain cycle Pneu, sans relancer les voix.
     nextWord: {
         ~wordIndex = (~wordIndex + 1) % ~words.size;
         ~word = ~words[~wordIndex];
-        ("word: " ++ ~word).postln;
+        if(~uiNextImage.notNil) { ~uiNextImage.() };
+        ("word [" ++ ~wordIndex ++ "]: " ++ ~word).postln;
     },
 
     prevWord: {
         ~wordIndex = (~wordIndex - 1).mod(~words.size);
         ~word = ~words[~wordIndex];
-        ("word: " ++ ~word).postln;
+        if(~uiPrevImage.notNil) { ~uiPrevImage.() };
+        ("word [" ++ ~wordIndex ++ "]: " ++ ~word).postln;
     },
 
+    // --- Reset des paramètres ---
     resetMorph: {
         ~morph = 0.5;
         "morph reset".postln;
     },
 
-    // --- Voix (Ndef) ---
+    resetWord: {
+        ~wordIndex = 0;
+        ~word = ~words[0];
+        if(~uiSetImage.notNil) { ~uiSetImage.(0) };
+        "word reset".postln;
+    },
 
-    // play : règle fadeTime puis .play vers ~busses.master.
-    // Le fade-in est fait par NodeProxy. La filter slot continue à
-    // écrire vers reverb/delay.
-    play: { |name, fadeIn=2|
-        if(~voices[name].isNil) {
-            "play: voix % inconnue".format(name).warn;
+    // --- Lecture / arrêt ---
+    togglePlay: {
+        if(Pdef(\rhythm).isPlaying) {
+            ~actions.stopRoutines.();
+            Pdef(\rhythm).stop;
+            "rhythm stopped".postln;
         } {
-            Ndef(name).fadeTime = fadeIn;
-            Ndef(name).play(out: ~busses.master.index);
-            "play %: fade-in % s".format(name, fadeIn).postln;
+            ~actions.stopRoutines.();
+            Pdef(\rhythm).play;
+            "rhythm started (manual)".postln;
         };
     },
 
-    // stop : règle fadeTime puis .stop. Le fade-out est fait par NodeProxy.
-    stop: { |name, fadeOut=2|
-        if(~voices[name].isNil) {
-            "stop: voix % inconnue".format(name).warn;
+    toggleAuto: {
+        if(Pdef(\rhythm).isPlaying) {
+            ~actions.stopRoutines.();
+            Pdef(\rhythm).stop;
+            "auto stopped".postln;
         } {
-            Ndef(name).fadeTime = fadeOut;
-            Ndef(name).stop;
-            "stop %: fade-out % s".format(name, fadeOut).postln;
+            ~actions.resetMorph.();
+            ~actions.resetWord.();
+            Pdef(\rhythm).play;
+
+            ~wordCyclerRoutine = Routine({
+                loop {
+                    ~wordIndex = (~wordIndex + 1) % ~words.size;
+                    ~word = ~words[~wordIndex];
+                    if(~uiNextImage.notNil) { ~uiNextImage.() };
+                    ("[wordCycler] word[%]: %".format(~wordIndex, ~word)).postln;
+                    16.wait;
+                };
+            }).play(TempoClock.default, quant: 4);
+
+            ~morphRoutine = Routine({
+                var seq = Pseq(((0..16) ++ (15..1)) / 16, inf).asStream;
+                loop {
+                    ~morph = seq.next;
+                    1.wait;
+                };
+            }).play(TempoClock.default, quant: 1);
+
+            "auto started".postln;
         };
     },
 
-    toggle: { |name, fadeTime=2|
-        if(~voices[name].notNil) {
-            if(Ndef(name).isPlaying) {
-                ~actions[\stop].(name, fadeTime);
-            } {
-                ~actions[\play].(name, fadeTime);
-            };
-        };
-    },
-
-    stopAll: { |fadeOut=2|
-        ~voices.keysDo { |name|
-            if(Ndef(name).isPlaying) {
-                ~actions[\stop].(name, fadeOut);
-            };
-        };
-    },
-
-    setSendReverb: { |name, val|
-        if(~voices[name].notNil) { Ndef(name).set(\sendReverb, val) };
-    },
-
-    setSendDelay: { |name, val|
-        if(~voices[name].notNil) { Ndef(name).set(\sendDelay, val) };
+    // --- Helper ---
+    stopRoutines: {
+        if(~wordCyclerRoutine.notNil) { ~wordCyclerRoutine.stop };
+        if(~morphRoutine.notNil) { ~morphRoutine.stop };
     },
 );
 )

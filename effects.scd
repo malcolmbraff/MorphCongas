@@ -3,7 +3,7 @@ SynthDef(\reverb, { |in=0, out=0, room=0.7, damp=0.5, amp=1.0|
     var sig, wet;
     sig = In.ar(in, 2);
     wet = FreeVerb2.ar(sig[0], sig[1], mix: 1.0, room: room, damp: damp);
-    Out.ar(out, wet * amp);
+    Out.ar(out, wet * Lag.kr(amp, 0.05));   // lag pour smoother les changements
 }).add;
 
 SynthDef(\delay, { |in=0, out=0, time=0.375, fb=0.6, amp=1.0|
